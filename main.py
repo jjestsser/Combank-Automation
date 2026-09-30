@@ -364,7 +364,6 @@ def get_chrome_options(headless=True):
     chrome_options.add_argument('--disable-extensions')  # Disable extensions
     chrome_options.add_argument('--disable-software-rasterizer')  # Disable software rasterizer
     chrome_options.add_argument('--disable-setuid-sandbox')  # Disable setuid sandbox
-    chrome_options.add_argument('--remote-debugging-port=9222')  # Enable remote debugging
     chrome_options.add_argument('--disable-background-timer-throttling')
     chrome_options.add_argument('--disable-backgrounding-occluded-windows')
     chrome_options.add_argument('--disable-renderer-backgrounding')
@@ -1237,14 +1236,10 @@ def scrape_account_data(username: str, password: str, headless: bool = True, ret
         }
     finally:
         if driver:
+            # Always quit, even if the tab crashed: quit() stops chromedriver and
+            # kills the Chrome process, otherwise they leak and eat memory
             try:
-                # Check if driver session is still valid before quitting
-                try:
-                    driver.current_url  # Test if session is valid
-                    driver.quit()
-                except:
-                    # Session already invalid, just pass
-                    pass
+                driver.quit()
             except:
                 pass
 
