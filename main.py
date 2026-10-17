@@ -386,8 +386,29 @@ def get_chrome_options(headless=True):
         chrome_options.add_experimental_option("detach", True)
     return chrome_options
 
+def dismiss_preferred_browser_modal(driver):
+    """Click OK on the 'Preferred browser' modal. It opens on top of the other
+    dialogs (e.g. 'active session') and blocks clicks on them until closed."""
+    try:
+        for modal in driver.find_elements(By.CSS_SELECTOR, 'div.ui-dialog[role="dialog"]'):
+            if not modal.is_displayed() or 'preferred browser' not in modal.text.lower():
+                continue
+            ok_btn = modal.find_element(By.CSS_SELECTOR, 'a.submit-confirmation')
+            try:
+                ok_btn.click()
+            except Exception:
+                driver.execute_script("arguments[0].click();", ok_btn)
+            logger.info("✅ Closed 'Preferred browser' modal")
+            time.sleep(2)
+            return True
+    except Exception as e:
+        logger.warning(f"Error closing preferred browser modal: {str(e)}")
+    return False
+
 def check_and_handle_active_session_modal(driver, wait):
     """Check for 'active session' modal and close it. Returns True only if modal was found and requires retry."""
+    # The 'Preferred browser' modal sits on top of the 'active session' one
+    dismiss_preferred_browser_modal(driver)
     try:
         # First check page source for "active session" text (quick check)
         try:
@@ -974,6 +995,7 @@ def scrape_account_data(username: str, password: str, headless: bool = True, ret
         # Check for modals/dialogs and close them (including "active session" modal)
         def close_modal_if_present():
             """Close any modal dialog that appears, especially 'active session' modal"""
+            dismiss_preferred_browser_modal(driver)
             try:
                 # Check page source for "active session" text
                 page_text = driver.page_source.lower()
@@ -1002,6 +1024,7 @@ def scrape_account_data(username: str, password: str, headless: bool = True, ret
                                 # Check modal text content
                                 try:
                                     modal_text = modal.text.lower()
+                                    logger.info(f"Closing modal with text: {' '.join(modal.text.split())[:300]!r}")
                                     if 'active session' in modal_text or 'already active' in modal_text:
                                         logger.info("Found 'active session' modal, closing it...")
                                 except:
@@ -1141,6 +1164,12 @@ def scrape_account_data(username: str, password: str, headless: bool = True, ret
                 except:
                     driver.execute_script("arguments[0].click();", account_element)
             except Exception as e:
+                # Log where we ended up so login rejections are visible in the logs
+                try:
+                    dialogs = [' '.join(m.text.split())[:300] for m in driver.find_elements(By.CSS_SELECTOR, 'div[role="dialog"]') if m.is_displayed()]
+                    logger.error(f"Account not found. URL: {driver.current_url} | Title: {driver.title} | Open dialogs: {dialogs}")
+                except Exception:
+                    pass
                 raise Exception(f"Could not find or click account: {str(e)}")
 
         time.sleep(5)  # Wait for the account details page + transaction table to load
