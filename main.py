@@ -1024,6 +1024,7 @@ def scrape_account_data(username: str, password: str, headless: bool = True, ret
                                 # Check modal text content
                                 try:
                                     modal_text = modal.text.lower()
+                                    logger.info(f"Closing modal with text: {' '.join(modal.text.split())[:300]!r}")
                                     if 'active session' in modal_text or 'already active' in modal_text:
                                         logger.info("Found 'active session' modal, closing it...")
                                 except:
@@ -1163,6 +1164,12 @@ def scrape_account_data(username: str, password: str, headless: bool = True, ret
                 except:
                     driver.execute_script("arguments[0].click();", account_element)
             except Exception as e:
+                # Log where we ended up so login rejections are visible in the logs
+                try:
+                    dialogs = [' '.join(m.text.split())[:300] for m in driver.find_elements(By.CSS_SELECTOR, 'div[role="dialog"]') if m.is_displayed()]
+                    logger.error(f"Account not found. URL: {driver.current_url} | Title: {driver.title} | Open dialogs: {dialogs}")
+                except Exception:
+                    pass
                 raise Exception(f"Could not find or click account: {str(e)}")
 
         time.sleep(5)  # Wait for the account details page + transaction table to load
